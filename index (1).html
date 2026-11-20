@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>오목</title>
+<style>
+  :root{
+    --bg:#1f2b33; --panel:#2b3a44; --text:#eef2f4; --sub:#9fb2bd;
+    --accent:#e8b84a; --danger:#ef6b5b; --btn:#3b4d59;
+  }
+  *{box-sizing:border-box}
+  [hidden]{display:none !important}
+  body{
+    margin:0; min-height:100vh; background:var(--bg); color:var(--text);
+    font-family:'Pretendard','Apple SD Gothic Neo','Malgun Gothic',system-ui,sans-serif;
+    display:flex; flex-direction:column; align-items:center; padding:14px;
+  }
+  section{display:flex; flex-direction:column; align-items:center; gap:12px; width:100%}
+  h1{margin:0 0 10px; font-size:24px; letter-spacing:.02em}
+  .panel{width:min(94vw,560px); background:var(--panel); border-radius:12px; padding:12px 14px}
+  .title{font-weight:700; margin-bottom:10px}
+
+  /* 모드 선택 */
+  .modes{display:flex; gap:10px}
+  .mode{
+    flex:1; padding:14px 8px; border-radius:10px; border:2px solid transparent;
+    background:var(--btn); color:var(--text); font-size:17px; font-weight:700; cursor:pointer;
+    display:flex; flex-direction:column; gap:4px; align-items:center;
+  }
+  .mode small{font-weight:400; color:var(--sub); font-size:13px}
+  .mode.sel{border-color:var(--accent)}
+
+  /* 스페셜: 돌 꾸미기 */
+  .stoneCfg{display:flex; gap:12px; align-items:center; padding:12px 0; border-top:1px solid var(--btn)}
+  .stoneCfg:first-of-type{border-top:0}
+  .prev{
+    width:56px; height:56px; border-radius:50%; flex:none; border:2px solid rgba(0,0,0,.35);
+    background-size:cover; background-position:center;
+  }
+  .prev.b{background-image:radial-gradient(circle at 35% 35%,#555,#050505)}
+  .prev.w{background-image:radial-gradient(circle at 35% 35%,#fff,#cfcfcf)}
+  .fields{flex:1; min-width:0; display:flex; flex-direction:column; gap:8px}
+  .fields label{font-size:13px; color:var(--sub); display:flex; flex-direction:column; gap:4px}
+  .nm{
+    width:100%; padding:9px 10px; border-radius:8px; border:1px solid #4b6272;
+    background:#1b252c; color:var(--text); font-size:15px;
+  }
+  .pick{display:flex; flex-wrap:wrap; align-items:center; gap:8px; font-size:13px; color:var(--sub)}
+  .pickBtn{
+    position:relative; overflow:hidden; padding:8px 12px; border-radius:8px;
+    background:var(--accent); color:#2a2208; font-weight:700; font-size:13px; cursor:pointer;
+  }
+  .pickBtn input{position:absolute; inset:0; width:100%; height:100%; opacity:0; cursor:pointer; font-size:0}
+  .fileMsg{flex-basis:100%; font-size:12px; color:var(--accent); min-height:0}
+  .fileMsg.err{color:var(--danger)}
+  .def{
+    padding:7px 10px; border-radius:8px; border:2px solid transparent;
+    background:var(--btn); color:var(--text); cursor:pointer; font-size:13px;
+  }
+  .def.on{border-color:var(--accent)}
+
+  /* 게임 */
+  #statusRow{display:flex; align-items:center; justify-content:space-between; gap:10px}
+  #status{display:flex; align-items:center; gap:8px; font-weight:700; font-size:18px}
+  #dot{width:28px; height:28px; flex:none}
+  #time{font-size:20px; font-variant-numeric:tabular-nums; min-width:80px; text-align:right}
+  #time.low{color:var(--danger)}
+  #bar{height:6px; background:#1b252c; border-radius:3px; margin-top:10px; overflow:hidden}
+  #fill{height:100%; width:100%; background:var(--accent); transition:width .1s linear}
+  #fill.low{background:var(--danger)}
+  canvas#board{
+    width:min(94vw,560px); height:auto; aspect-ratio:1; border-radius:10px;
+    background:#d9a95b; touch-action:manipulation; cursor:pointer;
+    box-shadow:0 6px 20px rgba(0,0,0,.4);
+  }
+
+  /* 시간 설정 */
+  .setLabel{display:flex; justify-content:space-between; margin-bottom:8px; color:var(--sub); font-size:14px}
+  #limitText{color:var(--text); font-weight:700}
+  .sliderRow{display:flex; align-items:center; gap:10px}
+  .sliderRow button{
+    width:40px; height:40px; border-radius:50%; border:0; font-size:22px; line-height:1;
+    background:var(--btn); color:var(--text); cursor:pointer;
+  }
+  .sliderRow button:active{background:#4b6272}
+  input[type=range]{flex:1; accent-color:var(--accent); height:28px}
+
+  .btns{display:flex; gap:10px}
+  .btns button{
+    flex:1; padding:12px; border:0; border-radius:10px; font-size:16px; font-weight:700;
+    background:var(--accent); color:#2a2208; cursor:pointer;
+  }
+  .btns button.sec{background:var(--btn); color:var(--text)}
+  button:focus-visible,input:focus-visible{outline:3px solid #fff; outline-offset:2px}
+</style>
+</head>
+<body>
+  <h1>오목</h1>
+
+  <!-- 설정 화면 -->
+  <section id="setup">
+    <div class="panel">
+      <div class="title">모드 선택</div>
+      <div class="modes">
+        <button class="mode sel" data-mode="basic">기본 모드<small>흑돌 · 백돌</small></button>
+        <button class="mode" data-mode="special">스페셜 모드<small>내 돌 만들기</small></button>
+      </div>
+    </div>
+
+    <div class="panel" id="special" hidden>
+      <div class="title">돌 꾸미기</div>
+      <div class="stoneCfg">
+        <div class="prev b"></div>
+        <div class="fields">
+          <label>돌 이름 <input type="text" class="nm" maxlength="8" placeholder="흑돌"></label>
+          <div class="pick">
+            <span>원하는 사진을 넣으세요</span>
+            <label class="pickBtn">사진 고르기<input type="file" accept="image/*" class="file"></label>
+            <button type="button" class="def on">기본(흑돌)</button>
+            <span class="fileMsg"></span>
+          </div>
+        </div>
+      </div>
+      <div class="stoneCfg">
+        <div class="prev w"></div>
+        <div class="fields">
+          <label>돌 이름 <input type="text" class="nm" maxlength="8" placeholder="백돌"></label>
+          <div class="pick">
+            <span>원하는 사진을 넣으세요</span>
+            <label class="pickBtn">사진 고르기<input type="file" accept="image/*" class="file"></label>
+            <button type="button" class="def on">기본(백돌)</button>
+            <span class="fileMsg"></span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="slotSetup"></div>
+
+    <div class="panel btns"><button id="start">게임 시작</button></div>
+  </section>
+
+  <!-- 게임 화면 -->
+  <section id="game" hidden>
+    <div class="panel">
+      <div id="statusRow">
+        <div id="status"><canvas id="dot" width="56" height="56"></canvas><span id="msg"></span></div>
+        <div id="time">제한 없음</div>
+      </div>
+      <div id="bar"><div id="fill"></div></div>
+    </div>
+
+    <canvas id="board" width="600" height="600"></canvas>
+
+    <div id="slotGame"></div>
+
+    <div class="panel btns">
+      <button id="reset">새 게임</button>
+      <button id="back" class="sec">설정으로</button>
+    </div>
+  </section>
+
+  <!-- 시간 설정 (설정 화면/게임 화면 사이를 오가며 공유) -->
+  <div class="panel" id="timePanel">
+    <div class="setLabel"><span>한 수당 시간 제한</span><span id="limitText">30초</span></div>
+    <div class="sliderRow">
+      <button id="minus" aria-label="시간 줄이기">−</button>
+      <input type="range" id="limit" min="0" max="120" step="5" value="30" aria-label="시간 제한">
+      <button id="plus" aria-label="시간 늘리기">+</button>
+    </div>
+  </div>
+
+<script>
+(function(){
+  const $ = id => document.getElementById(id);
+  const N = 15, CELL = 40, M = 20;
+  const DEF = ['흑돌', '백돌'];
+  const cv = $('board'), ctx = cv.getContext('2d');
+
+  let mode = 'basic';
+  let names = DEF.slice(), imgs = [null, null], sprites = [null, null];
+  const userImgs = [null, null];
+  let board, turn, history, over, winLine, limit = 30, deadline, tid, playing = false;
+
+  /* ---------- 설정 화면 ---------- */
+  document.querySelectorAll('.mode').forEach(b => b.onclick = () => {
+    mode = b.dataset.mode;
+    document.querySelectorAll('.mode').forEach(x => x.classList.toggle('sel', x === b));
+    $('special').hidden = mode !== 'special';
+  });
+
+  const cfg = [...document.querySelectorAll('.stoneCfg')];
+  function setPreview(i){
+    const p = cfg[i].querySelector('.prev');
+    if(userImgs[i]){
+      p.className = 'prev';
+      p.style.backgroundImage = 'url("' + userImgs[i].toDataURL() + '")';
+    } else {
+      p.className = 'prev ' + (i ? 'w' : 'b');
+      p.style.backgroundImage = '';
+    }
+    cfg[i].querySelector('.def').classList.toggle('on', !userImgs[i]);
+  }
+  function toSquare(img){
+    const w = img.naturalWidth, h = img.naturalHeight, s = Math.min(w, h);
+    const c = document.createElement('canvas'); c.width = c.height = 256;
+    c.getContext('2d').drawImage(img, (w - s) / 2, (h - s) / 2, s, s, 0, 0, 256, 256);
+    return c;
+  }
+  cfg.forEach((c, i) => {
+    const file = c.querySelector('.file'), msg = c.querySelector('.fileMsg');
+    function fail(){
+      msg.textContent = '사진을 불러오지 못했어요. JPG나 PNG 사진으로 다시 골라 주세요.';
+      msg.className = 'fileMsg err';
+    }
+    file.onchange = () => {
+      const f = file.files[0];
+      if(!f) return;
+      msg.textContent = '불러오는 중…'; msg.className = 'fileMsg';
+      const rd = new FileReader();
+      rd.onerror = fail;
+      rd.onload = () => {
+        const img = new Image();
+        img.onload = () => { userImgs[i] = toSquare(img); setPreview(i); msg.textContent = '✓ ' + f.name; };
+        img.onerror = fail;
+        img.src = rd.result;
+      };
+      rd.readAsDataURL(f);
+    };
+    c.querySelector('.def').onclick = () => { userImgs[i] = null; file.value = ''; msg.textContent = ''; setPreview(i); };
+  });
+
+  /* ---------- 돌 이미지 (동그랗게 잘라서 돌 모양으로) ---------- */
+  function makeSprite(i){
+    const S = 160, r = S / 2;
+    const c = document.createElement('canvas'); c.width = c.height = S;
+    const g = c.getContext('2d');
+    const img = imgs[i];
+    if(img){
+      g.save();
+      g.beginPath(); g.arc(r, r, r - 2, 0, Math.PI * 2); g.clip();
+      g.drawImage(img, 0, 0, S, S);
+      g.restore();
+      g.lineWidth = 3; g.strokeStyle = 'rgba(0,0,0,.55)';
+      g.beginPath(); g.arc(r, r, r - 2, 0, Math.PI * 2); g.stroke();
+    } else {
+      const gr = g.createRadialGradient(r * .65, r * .65, r * .1, r, r, r);
+      if(i === 0){ gr.addColorStop(0, '#555'); gr.addColorStop(1, '#050505'); }
+      else { gr.addColorStop(0, '#fff'); gr.addColorStop(1, '#cfcfcf'); }
+      g.fillStyle = gr;
+      g.beginPath(); g.arc(r, r, r - 1, 0, Math.PI * 2); g.fill();
+    }
+    return c;
+  }
+
+  /* ---------- 화면 전환 ---------- */
+  function startGame(){
+    if(mode === 'special'){
+      names = cfg.map((c, i) => c.querySelector('.nm').value.trim() || DEF[i]);
+      if(names[0] === names[1]) names[1] += ' 2';
+      imgs = [userImgs[0], userImgs[1]];
+    } else {
+      names = DEF.slice(); imgs = [null, null];
+    }
+    sprites = [makeSprite(0), makeSprite(1)];
+    $('setup').hidden = true; $('game').hidden = false;
+    $('slotGame').appendChild($('timePanel'));
+    init();
+  }
+  function backToSetup(){
+    playing = false; clearInterval(tid);
+    $('game').hidden = true; $('setup').hidden = false;
+    $('slotSetup').appendChild($('timePanel'));
+  }
+  $('start').onclick = startGame;
+  $('back').onclick = backToSetup;
+
+  function init(){
+    board = Array.from({length: N}, () => Array(N).fill(0));
+    turn = 1; history = []; over = false; winLine = null; playing = true;
+    updateStatus(); draw(); startTimer();
+  }
+
+  /* ---------- 그리기 ---------- */
+  function draw(){
+    ctx.clearRect(0, 0, 600, 600);
+    ctx.strokeStyle = '#5a3f16'; ctx.lineWidth = 1.2;
+    for(let i = 0; i < N; i++){
+      const p = M + i * CELL;
+      ctx.beginPath(); ctx.moveTo(M, p); ctx.lineTo(M + (N - 1) * CELL, p); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(p, M); ctx.lineTo(p, M + (N - 1) * CELL); ctx.stroke();
+    }
+    ctx.fillStyle = '#5a3f16';
+    [3, 7, 11].forEach(a => [3, 7, 11].forEach(b => {
+      ctx.beginPath(); ctx.arc(M + a * CELL, M + b * CELL, 4, 0, Math.PI * 2); ctx.fill();
+    }));
+    for(let y = 0; y < N; y++) for(let x = 0; x < N; x++) if(board[y][x]) stone(x, y, board[y][x]);
+    if(history.length){
+      const l = history[history.length - 1];
+      ctx.strokeStyle = '#ef4a3a'; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.arc(M + l.x * CELL, M + l.y * CELL, CELL * 0.5, 0, Math.PI * 2); ctx.stroke();
+    }
+    if(winLine){
+      ctx.strokeStyle = '#ef4a3a'; ctx.lineWidth = 4; ctx.lineCap = 'round';
+      const a = winLine[0], b = winLine[winLine.length - 1];
+      ctx.beginPath();
+      ctx.moveTo(M + a[0] * CELL, M + a[1] * CELL); ctx.lineTo(M + b[0] * CELL, M + b[1] * CELL);
+      ctx.stroke();
+    }
+  }
+  function stone(x, y, c){
+    const rr = CELL * 0.45, cx = M + x * CELL, cy = M + y * CELL;
+    ctx.save();
+    ctx.shadowColor = 'rgba(0,0,0,.45)'; ctx.shadowBlur = 4; ctx.shadowOffsetY = 2;
+    ctx.drawImage(sprites[c - 1], cx - rr, cy - rr, rr * 2, rr * 2);
+    ctx.restore();
+  }
+
+  /* ---------- 승리 판정 (5개 이상 연속) ---------- */
+  function checkWin(x, y, c){
+    for(const [dx, dy] of [[1, 0], [0, 1], [1, 1], [1, -1]]){
+      const line = [[x, y]];
+      for(let s = 1;; s++){
+        const nx = x + dx * s, ny = y + dy * s;
+        if(nx < 0 || ny < 0 || nx >= N || ny >= N || board[ny][nx] !== c) break;
+        line.push([nx, ny]);
+      }
+      for(let s = 1;; s++){
+        const nx = x - dx * s, ny = y - dy * s;
+        if(nx < 0 || ny < 0 || nx >= N || ny >= N || board[ny][nx] !== c) break;
+        line.unshift([nx, ny]);
+      }
+      if(line.length >= 5) return line;
+    }
+    return null;
+  }
+
+  /* ---------- 상태 표시 ---------- */
+  function paintDot(c){
+    const d = $('dot').getContext('2d');
+    d.clearRect(0, 0, 56, 56);
+    d.drawImage(sprites[c - 1], 0, 0, 56, 56);
+  }
+  function updateStatus(text){
+    paintDot(turn);
+    $('msg').textContent = text || (names[turn - 1] + ' 차례');
+  }
+
+  /* ---------- 타이머 ---------- */
+  function startTimer(){
+    clearInterval(tid);
+    if(over || limit === 0){ deadline = null; renderTime(null); return; }
+    deadline = Date.now() + limit * 1000;
+    tid = setInterval(tick, 100);
+    tick();
+  }
+  function tick(){
+    const left = (deadline - Date.now()) / 1000;
+    if(left <= 0){
+      clearInterval(tid); over = true; renderTime(0);
+      turn = 3 - turn;                       // 시간 초과 → 상대 승리
+      updateStatus('시간 초과! ' + names[turn - 1] + ' 승리');
+      return;
+    }
+    renderTime(left);
+  }
+  function renderTime(left){
+    const t = $('time'), f = $('fill');
+    if(left === null){
+      t.textContent = limit === 0 ? '제한 없음' : '';
+      t.classList.remove('low'); f.classList.remove('low');
+      f.style.width = '100%';
+      return;
+    }
+    t.textContent = Math.ceil(left) + '초';
+    f.style.width = (left / limit * 100) + '%';
+    const low = left <= 5;
+    t.classList.toggle('low', low); f.classList.toggle('low', low);
+  }
+
+  /* ---------- 입력 ---------- */
+  cv.addEventListener('click', e => {
+    if(over || !playing) return;
+    const r = cv.getBoundingClientRect();
+    const px = (e.clientX - r.left) * (cv.width / r.width);
+    const py = (e.clientY - r.top) * (cv.height / r.height);
+    const x = Math.round((px - M) / CELL), y = Math.round((py - M) / CELL);
+    if(x < 0 || y < 0 || x >= N || y >= N || board[y][x]) return;
+    board[y][x] = turn;
+    history.push({x, y, c: turn});
+    const line = checkWin(x, y, turn);
+    if(line){
+      over = true; winLine = line; clearInterval(tid);
+      draw(); renderTime(null);
+      updateStatus(names[turn - 1] + ' 승리! 🎉');
+      return;
+    }
+    if(history.length === N * N){
+      over = true; clearInterval(tid); draw(); renderTime(null);
+      updateStatus('무승부');
+      return;
+    }
+    turn = 3 - turn;
+    updateStatus(); draw(); startTimer();
+  });
+
+  $('reset').onclick = init;
+
+  /* ---------- 시간 설정 ---------- */
+  const slider = $('limit');
+  function setLimit(v){
+    v = Math.max(0, Math.min(120, v));
+    limit = v; slider.value = v;
+    $('limitText').textContent = v === 0 ? '제한 없음' : v + '초';
+    if(playing) startTimer();
+  }
+  slider.addEventListener('input', () => setLimit(+slider.value));
+  $('minus').onclick = () => setLimit(limit - 5);
+  $('plus').onclick = () => setLimit(limit + 5);
+
+  $('slotSetup').appendChild($('timePanel'));
+  setLimit(30);
+})();
+</script>
+</body>
+</html>
